@@ -1,5 +1,5 @@
 import networkx as nx
-from parse import read_input_file, write_output_file
+from parse import read_input_file, write_output_file, write_input_file
 from utils import is_valid_network, average_pairwise_distance
 import random as r
 import sys
@@ -25,7 +25,7 @@ def complete_random_weight(n):
     
     return G
 
-def random_graph(n):
+def random_graph(n, neighbor_upper, neighbor_lower=1):
     '''
 
     Creates a random connected graph with
@@ -37,4 +37,21 @@ def random_graph(n):
     G = nx.Graph()
     vertices = list(range(n))
 
-    G.add
+    G.add_nodes_from(vertices)
+    already_added = set()
+
+    for u in vertices:
+        neighbors = r.randint(neighbor_lower, neighbor_upper)
+        while neighbors > 0:
+            v = r.choice(vertices)
+            if v != u and v not in already_added:
+                e = (u, v, {'weight' : round(r.random(0, 100), 3)})
+                G.add_edge(*e)
+                neighbors -= 1
+        already_added.clear()
+    
+    return G
+
+if __name__ == '__main__':
+    G = random_graph(25, 25)
+    write_input_file(G, path="")
