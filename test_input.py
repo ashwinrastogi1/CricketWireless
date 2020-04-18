@@ -17,14 +17,24 @@ def complete_random_weight(n):
     vertices = list(range(n))
 
     G.add_nodes_from(vertices)
-    existing = set()
 
     for u in range(n):
         for v in range(u + 1, n):
             e = (u, v, {'weight': round(r.random(0, 100), 3)})
             G.add_edge(*e)
-            existing.add((u, v))
     
     return G
+
+def random_graph(n):
+    '''
+
+    Creates a random connected graph with
+    n vertices and with randomly generated
+    positive edge weights.
+
+    '''
     
-    
+    G = nx.Graph()
+    vertices = list(range(n))
+
+    G.add
