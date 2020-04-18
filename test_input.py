@@ -47,11 +47,13 @@ def random_graph(n, neighbor_upper, neighbor_lower=1):
             if v != u and v not in already_added:
                 e = (u, v, {'weight' : round(r.random(0, 100), 3)})
                 G.add_edge(*e)
+
+                already_added.add(v)
                 neighbors -= 1
         already_added.clear()
     
     return G
 
 if __name__ == '__main__':
-    G = random_graph(25, 25)
+    G = random_graph(5, 5)
     write_input_file(G, path="")
