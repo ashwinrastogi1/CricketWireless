@@ -61,10 +61,15 @@ def random_graph(n, neighbor_upper, neighbor_lower=1):
     return G
 
 if __name__ == '__main__':
-    G = nx.barabasi_albert_graph(25, r.randint(0, 10))
+    G = nx.barabasi_albert_graph(100, r.randint(1, 50))
 
     for u, v in G.edges:
         G[u][v]['weight'] = round(r.uniform(0, 100), 3)
 
     nx.draw(G, with_labels=True, font_weight='bold')
     plt.show()
+
+    if nx.is_connected(G):
+        write_input_file(G, path="100.in")
+    else:
+        print("NOT CONNECTED")
