@@ -125,23 +125,23 @@ def make_model(G: nx.Graph):
 
 # Usage: python3 solver.py test.in
 if __name__ == '__main__':
-    # assert len(sys.argv) == 2
-    # path = sys.argv[1]
-    # G = read_input_file(path)
-    # T = solve(G)
-    # assert is_valid_network(G, T)
-    # print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
-    # write_output_file(T, 'out/test.out')
+    assert len(sys.argv) == 2
+    path = sys.argv[1]
+    G = read_input_file(path)
+    T = solve(G)
+    assert is_valid_network(G, T)
+    print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
+    write_output_file(T, 'out/test.out')
 
-    unsolved = []
+    # unsolved = []
 
-    for file in glob.glob('inputs/small-*.in'):
-        G = read_input_file(file)
-        T = solve(G)
-        if is_valid_network(G, T):
-            print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
-            write_output_file(T, 'out/' + file[7:-2] + 'out')
-        else:
-            unsolved.append(file)
+    # for file in glob.glob('inputs/small-*.in'):
+    #     G = read_input_file(file)
+    #     T = solve(G)
+    #     if is_valid_network(G, T):
+    #         print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
+    #         write_output_file(T, 'out/' + file[7:-2] + 'out')
+    #     else:
+    #         unsolved.append(file)
     
-    print(unsolved)
+    # print(unsolved)
