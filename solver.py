@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from mip import Model, xsum, minimize, BINARY
 import sys
 
-DEFAULT_MAX_WEIGHT = 2000000.0
+DEFAULT_MAX_WEIGHT = 100000000.0
 
 def solve(G):
     """
@@ -17,7 +17,7 @@ def solve(G):
         T: networkx.Graph
     """
     
-    model, x, y, dist, V = make_model(G)
+    model, x, y, V = make_model(G)
     model.optimize(max_seconds=60)
     
     if not model.num_solutions:
@@ -30,20 +30,18 @@ def solve(G):
 
     # Added included vertices in model
     for i in V:
-        if y[i] >= 0.99:
+        if y[i].x >= 0.99:
             T.add_node(i)
     
+    print([y[i].x for i in range(len(y))])
+
     # Added included edges in model
-    edges = set()
     for i in V:
         for j in V:
-            if (i != j and x[i][j] >= 0.99 and dist[i][j] <= 100 
-                and ((i, j) not in edges and (j, i) not in edges)):
-                
-                edges.add((i, j))
+            if (i != j and x[i][j].x >= 0.99):
                 T.add_edge(i, j)
 
-                T[i][j]['weight'] = dist[i][j]
+                T[i][j]['weight'] = G[i][j]['weight']
                 #print(i, j, dist[i][j])
     
     print("Number of edges: ", T.number_of_edges())
@@ -73,12 +71,11 @@ def make_model(G: nx.Graph):
     n, V = G.number_of_nodes(), set(range(G.number_of_nodes()))
     
     # Fill in edge weights into adjacency matrix
-    for i in range(n):
-        for j in range(i + 1, n):
-            if G.has_edge(i, j):
-                dist[i][j] = G[i][j]['weight']
-                dist[j][i] = G[i][j]['weight']
-                print(i, j, dist[i][j])
+    for i in V:
+        for j in V:
+            if not G.has_edge(i, j):
+                G.add_edge(i, j)
+                G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
 
     model = Model()
     model.emphasis = 2
@@ -89,7 +86,7 @@ def make_model(G: nx.Graph):
     y = [model.add_var(var_type=BINARY) for i in V]
 
     # Objective function: minimize pairwise distance
-    model.objective = minimize(xsum(x[i][j] * dist[i][j] for i in V for j in V))
+    model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
 
     # Constraint: at least one vertex must be chosen
     model += xsum(y[i] for i in V) >= 1
@@ -114,7 +111,7 @@ def make_model(G: nx.Graph):
     
     # Constraint: number of edges is number of vertices - 1 (Tree)
     model += 0.5 * xsum(x[i][j] for i in V for j in V) == xsum(y[i] for i in V) - 1
-    return model, x, y, dist, V
+    return model, x, y, V
 
 # Here's an example of how to run your solver.
 
