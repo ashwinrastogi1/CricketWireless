@@ -1,5 +1,5 @@
 import networkx as nx
-from parse import read_input_file, write_output_file
+from parse import read_input_file, write_output_file, read_output_file
 from utils import is_valid_network, average_pairwise_distance
 from itertools import product
 import matplotlib.pyplot as plt
@@ -121,17 +121,34 @@ def make_model(G: nx.Graph):
     model += 0.5 * xsum(x[i][j] for i in V for j in V) == xsum(y[i] for i in V) - 1
     return model, x, y, V
 
+def check_answer():
+    incorrect = []
+    for file in glob.glob('submission/large-*.out'):
+        G = read_input_file('inputs/' + file[11:-3] + 'in')
+        T = read_output_file(file, G)
+
+        if is_valid_network(G, T):
+            print(file, "WORKED!")
+        else:
+            incorrect.append(file)
+    
+    with open('large_not_work.txt', 'w') as fo:
+        fo.write("\n".join(incorrect))
+        fo.close()
+
 # Here's an example of how to run your solver.
 
 # Usage: python3 solver.py test.in
 if __name__ == '__main__':
-    assert len(sys.argv) == 2
-    path = sys.argv[1]
-    G = read_input_file(path)
-    T = solve(G)
-    assert is_valid_network(G, T)
-    print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
-    write_output_file(T, 'out/test.out')
+    # assert len(sys.argv) == 2
+    # path = sys.argv[1]
+    # G = read_input_file(path)
+    # T = solve(G)
+    # assert is_valid_network(G, T)
+    # print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
+    # write_output_file(T, 'out/test.out')
+
+    check_answer()
 
     # unsolved = []
 
