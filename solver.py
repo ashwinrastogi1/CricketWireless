@@ -79,23 +79,6 @@ def make_model(G_copy: nx.Graph):
             if not G.has_edge(i, j):
                 G.add_edge(i, j)
                 G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
-            G[i][j]['capacity'] = int(i != j)
-
-    # Make supersource and supersink
-    source = n + 1
-    sink = n + 2
-
-    G.add_node(source)
-    G.add_node(sink)
-
-    for i in V:
-        G.add_edge(sink, i)
-        G[i][sink]['capacity'] = 1.0
-        G[i][sink]['weight'] = DEFAULT_MAX_WEIGHT
-    
-        G.add_edge(source, i)
-        G[i][source]['capacity'] = float(n)
-        G[i][source]['weight'] = DEFAULT_MAX_WEIGHT
 
     model = Model()
     model.emphasis = 2
@@ -106,22 +89,9 @@ def make_model(G_copy: nx.Graph):
     y = [model.add_var(var_type=BINARY) for i in V]
     # Making boolean variables for logical OR
     z = [model.add_var(var_type=BINARY) for i in V]
-    # Making total flow variables
-    x_source = [model.add_var(var_type=BINARY) for i in V]
-    x_sink = [model.add_var(var_type=BINARY) for i in V]
-    flow = [[model.add_var() for j in V] for i in V]
 
     # Objective function: minimize pairwise distance
     model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
-
-    # Constraint: Total flow with only one source connected vertex
-    model += xsum(x_source[i] for i in V) == 1
-
-    # Constraint: flow must be non negative and <= capacity
-    for i in V:
-        for j in V:
-            model += flow[i][j] <= G[i][j]['capacity']
-            model += flow[i][j] >= 0
 
     # Constraint: at least one vertex must be chosen
     model += xsum(y[i] for i in V) >= 1
@@ -180,6 +150,8 @@ if __name__ == '__main__':
     assert len(sys.argv) == 2
     path = sys.argv[1]
     G = read_input_file(path)
+    # nx.draw(G.to_directed())
+    # plt.show()
     T = solve(G)
     assert is_valid_network(G, T)
     print('GOT THRU BB')
