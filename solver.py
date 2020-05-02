@@ -5,6 +5,7 @@ from itertools import product
 import matplotlib.pyplot as plt
 from mip import Model, xsum, minimize, BINARY
 import sys
+import glob
 
 DEFAULT_MAX_WEIGHT = 100000000.0
 
@@ -78,7 +79,7 @@ def make_model(G: nx.Graph):
                 G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
 
     model = Model()
-    model.emphasis = 0
+    model.emphasis = 2
 
     # Making boolean variables for each edge
     x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
@@ -124,15 +125,23 @@ def make_model(G: nx.Graph):
 
 # Usage: python3 solver.py test.in
 if __name__ == '__main__':
-    assert len(sys.argv) == 2
-    path = sys.argv[1]
-    G = read_input_file(path)
-    T = solve(G)
-    assert is_valid_network(G, T)
+    # assert len(sys.argv) == 2
+    # path = sys.argv[1]
+    # G = read_input_file(path)
+    # T = solve(G)
+    # assert is_valid_network(G, T)
+    # print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
+    # write_output_file(T, 'out/test.out')
 
-    print("GOT THRU BB")
-    print("Is dominating set: ", nx.is_dominating_set(G, T.nodes))
-    print("Is tree: ", nx.is_tree(T))
+    unsolved = []
+
+    for file in glob.glob('inputs/small-*.in'):
+        G = read_input_file(file)
+        T = solve(G)
+        if is_valid_network(G, T):
+            print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
+            write_output_file(T, 'out/' + file[7:-2] + 'out')
+        else:
+            unsolved.append(file)
     
-    print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
-    write_output_file(T, 'out/test.out')
+    print(unsolved)
