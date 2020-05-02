@@ -48,10 +48,12 @@ def solve(G):
     # print("Number of edges: ", T.number_of_edges())
     # print("Number of vertices: ", T.number_of_nodes())
 
-    nx.draw(T, with_labels=True, font_weight='bold')
+    #new_T = get_mst_T(G, T)
+
+    nx.draw(T, with_labels=True, font_weight='bold') # make sure to change new_T back to T
     plt.show()
 
-    print("Is dominating: ", nx.is_dominating_set(G, T.nodes))
+    print("Is dominating: ", nx.is_dominating_set(G, T.nodes)) # same here ^^
 
     # print("Average pairwise distance: ", average_pairwise_distance(T))
 
@@ -60,9 +62,19 @@ def solve(G):
        # return T
 
     # print("Found solution but is not valid tree")
-    return T
+
+    return T # change this back to T
 
 
+def get_mst_T(G, T):
+    new_T = nx.Graph(G)
+    for (u, v, w) in G.edges.data('weight'):
+        if (u not in T) and (u in new_T): 
+            new_T.remove_node(u)
+        if (v not in T) and (v in new_T): 
+            new_T.remove_node(v)
+
+    return nx.minimum_spanning_tree(new_T)
 
 def make_model(G_copy: nx.Graph):
     """
@@ -72,6 +84,7 @@ def make_model(G_copy: nx.Graph):
 
     G = nx.Graph(G_copy)
     n, V = G.number_of_nodes(), set(range(G.number_of_nodes()))
+    super_node = n
     
     # Fill in edge weights into adjacency matrix
     for i in V:
@@ -80,8 +93,13 @@ def make_model(G_copy: nx.Graph):
                 G.add_edge(i, j)
                 G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
 
+    G.add_node(super_node)
+    for i in V:
+        G.add_edge(super_node, i)
+        G[super_node][i]['weight'] = DEFAULT_MAX_WEIGHT
+
     model = Model()
-    model.emphasis = 2
+    model.emphasis = 0
 
     # Making boolean variables for each edge
     x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
@@ -89,6 +107,10 @@ def make_model(G_copy: nx.Graph):
     y = [model.add_var(var_type=BINARY) for i in V]
     # Making boolean variables for logical OR
     z = [model.add_var(var_type=BINARY) for i in V]
+    # Making boolean variables for connectivity
+    c = [model.add_var(var_type=BINARY) for i in V]
+    c.append(model.add_var(var_type=BINARY))
+    chosen = [model.add_var(var_type=BINARY) for i in V]
 
     # Objective function: minimize pairwise distance
     model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
@@ -126,6 +148,28 @@ def make_model(G_copy: nx.Graph):
     # Constraint: number of edges is number of vertices - 1 (Tree)
     model += 0.5 * xsum(x[i][j] for i in V for j in V if i != j) == xsum(y[i] for i in V) - 1
 
+    # Constraint: tree connected if all vertices are connected
+    model += c[super_node] >= 1
+    # Constraint: super node connected to only 1 vertex
+    model += xsum(chosen[i] for i in V) == 1
+
+    for i in V:
+        model += c[i] >= chosen[i] + y[i] - 1
+        model += c[i] <= chosen[i]
+        model += c[i] <= y[i]
+
+    for i in V:
+        for j in V:
+            if i != j:
+                model += c[i] <= chosen[i] + x[i][j]
+                model += c[i] >= chosen[i]
+                model += c[i] >= x[i][j]
+            
+            # model += c[j] <= x[i][j]
+            # model += c[j] >= x[i][j]
+    
+    model += xsum(c[i] for i in V) == xsum(y[i] for i in V)
+
     return model, x, y, V
 
 def check_answer():
@@ -143,6 +187,8 @@ def check_answer():
         fo.write("\n".join(incorrect))
         fo.close()
 
+
+    
 # Here's an example of how to run your solver.
 
 # Usage: python3 solver.py test.in
