@@ -34,7 +34,7 @@ def solve(G):
         if y[i].x >= 0.99:
             T.add_node(i)
     
-    print([y[i].x for i in range(len(y))])
+    # print([y[i].x for i in range(len(y))])
 
     # Added included edges in model
     for i in V:
@@ -45,19 +45,19 @@ def solve(G):
                 T[i][j]['weight'] = G[i][j]['weight']
                 #print(i, j, dist[i][j])
 
-    print("Number of edges: ", T.number_of_edges())
-    print("Number of vertices: ", T.number_of_nodes())
+    # print("Number of edges: ", T.number_of_edges())
+    # print("Number of vertices: ", T.number_of_nodes())
 
-    nx.draw(T, with_labels=True, font_weight='bold')
-    plt.show()
+    # nx.draw(T, with_labels=True, font_weight='bold')
+    # plt.show()
 
-    print("Average pairwise distance: ", average_pairwise_distance(T))
+    # print("Average pairwise distance: ", average_pairwise_distance(T))
 
     if is_valid_network(G, T):
-        print("Average pairwise distance: ", average_pairwise_distance(T))
+        # print("Average pairwise distance: ", average_pairwise_distance(T))
         return T
 
-    print("Found solution but is not valid tree")
+    # print("Found solution but is not valid tree")
     return T
 
 
@@ -142,6 +142,7 @@ if __name__ == '__main__':
     #         print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
     #         write_output_file(T, 'out/' + file[7:-2] + 'out')
     #     else:
+    #         print("DIDN'T WORK: ", file)
     #         unsolved.append(file)
     
     # print(unsolved)
