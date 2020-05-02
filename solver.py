@@ -129,6 +129,10 @@ if __name__ == '__main__':
     G = read_input_file(path)
     T = solve(G)
     assert is_valid_network(G, T)
+
     print("GOT THRU BB")
+    print("Is dominating set: ", nx.is_dominating_set(G, T.nodes))
+    print("Is tree: ", nx.is_tree(T))
+    
     print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
     write_output_file(T, 'out/test.out')
