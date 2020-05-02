@@ -39,7 +39,7 @@ def solve(G):
     # Added included edges in model
     for i in V:
         for j in V:
-            if (i != j and x[i][j].x >= 0.99):
+            if i != j and x[i][j].x >= 0.99 and G[i][j]['weight'] <= 100:
                 T.add_edge(i, j)
 
                 T[i][j]['weight'] = G[i][j]['weight']
@@ -123,7 +123,7 @@ def make_model(G: nx.Graph):
 
 def check_answer():
     incorrect = []
-    for file in glob.glob('submission/large-*.out'):
+    for file in glob.glob('submission/medium-*.out'):
         G = read_input_file('inputs/' + file[11:-3] + 'in')
         T = read_output_file(file, G)
 
@@ -132,7 +132,7 @@ def check_answer():
         else:
             incorrect.append(file)
     
-    with open('large_not_work.txt', 'w') as fo:
+    with open('medium_not_work.txt', 'w') as fo:
         fo.write("\n".join(incorrect))
         fo.close()
 
@@ -146,7 +146,7 @@ if __name__ == '__main__':
     # T = solve(G)
     # assert is_valid_network(G, T)
     # print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
-    # write_output_file(T, 'out/test.out')
+    # write_output_file(T, 'out/test_medium.out')
 
     check_answer()
 
