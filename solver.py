@@ -43,7 +43,7 @@ def solve(G):
 
                 T[i][j]['weight'] = G[i][j]['weight']
                 #print(i, j, dist[i][j])
-    
+
     print("Number of edges: ", T.number_of_edges())
     print("Number of vertices: ", T.number_of_nodes())
 
@@ -78,12 +78,14 @@ def make_model(G: nx.Graph):
                 G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
 
     model = Model()
-    model.emphasis = 2
+    model.emphasis = 0
 
     # Making boolean variables for each edge
     x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
     # Making boolean variables for each vertex
     y = [model.add_var(var_type=BINARY) for i in V]
+
+    z = [model.add_var(var_type=BINARY) for i in V]
 
     # Objective function: minimize pairwise distance
     model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
@@ -106,8 +108,13 @@ def make_model(G: nx.Graph):
     # For each vertex, y_i must 1 if none of its neighbors is 1
     for i in V:
         model += y[i] <= 1
-        for j in G.neighbors(i):
-            model += y[i] >= 1 - y[j]
+        neighbors = G.adj[i]
+        num_neighbors = len(neighbors)
+
+        model += num_neighbors - xsum(x[i][j] for j in neighbors) >= num_neighbors * (1 - z[i])
+        model += num_neighbors * (1 - z[i]) >= 1 - xsum(x[i][j] for j in V)
+
+        model += y[i] <= z[i]
     
     # Constraint: number of edges is number of vertices - 1 (Tree)
     model += 0.5 * xsum(x[i][j] for i in V for j in V) == xsum(y[i] for i in V) - 1
@@ -122,5 +129,6 @@ if __name__ == '__main__':
     G = read_input_file(path)
     T = solve(G)
     assert is_valid_network(G, T)
+    print("GOT THRU BB")
     print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
     write_output_file(T, 'out/test.out')
