@@ -53,9 +53,9 @@ def solve(G):
 
     # print("Average pairwise distance: ", average_pairwise_distance(T))
 
-    if is_valid_network(G, T):
+   # if is_valid_network(G, T):
         # print("Average pairwise distance: ", average_pairwise_distance(T))
-        return T
+       # return T
 
     # print("Found solution but is not valid tree")
     return T
