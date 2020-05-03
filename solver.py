@@ -18,13 +18,13 @@ def solve(G):
         T: networkx.Graph
     """
     
-    model, x, y, V = make_model(G)
+    model, x, y, f, V = make_model_new(G)
     model.optimize(max_seconds=60)
     
     if not model.num_solutions:
         print("Objective value: ", model.objective_value)
         print("No solutions found")
-        return None
+        return G
     
     print("Solution found with objective value: ", model.objective_value)
     T = nx.Graph()
@@ -35,6 +35,7 @@ def solve(G):
             T.add_node(i)
     
     print([y[i].x for i in range(len(y))])
+    print('\n', [f[i].x for i in range(len(f))])
 
     # Added included edges in model
     for i in V:
@@ -64,6 +65,57 @@ def solve(G):
     # print("Found solution but is not valid tree")
 
     return T # change this back to T
+
+def greedy_solve(G):
+    """
+    determine via cost function which node is the most locally optimal choice to add to preexisting nodes (tree)
+    """
+    cur_cost = 0
+    T = nx.Graph()
+    T.add_node(0) # for now, just start with initial node 0
+    v_t = 0
+    dist = [[0] * len(list(G))] * len(list(G))
+    while len(list(T)) < len(list(G)): 
+        min_attacher = -1
+        min_attachee = -1
+        min_cost = 2**128
+        for node in T.node(): # for each node currently in our solution tree T
+            for neighbor in G[node]: # for all potential neighbors, find the best one to attach
+                if neighbor not in T: # if dist[neighbor] not 0: # if it's a feasible node to add
+                    dist_to_attacher = G[neighbor][node]['weight'] # attaching the neighbor node to the current node
+                    cost = new_cost(cur_cost, neighbor, node, T, dist_to_attacher, dist) # calculate new cost after attaching
+
+                    if cost < min_cost: # if its cost is better than others
+                        min_attacher = neighbor
+                        min_attachee = node
+                        min_cost = cost
+            
+        # once we've found the best node to add, add its cost values to dist[]
+        for x in T.nodes: 
+            dist_to_attacher = G[min_attacher][min_attachee]['weight']
+            dist[x][min_attacher] = dist[x][min_attachee] + dist_to_attacher # distance from x to neighbor node is dist from x to attach + dist from attach to neighbor
+            dist[neighbor][x] = dist[x][min_attachee] + dist_to_attacher
+        T.add_edge(min_attachee, min_attacher)
+        T[min_attachee][min_attacher]['weight'] = dist_to_attacher
+    return T
+
+   # given a tree T, iterate over all potential nodes that can be added
+   # calculate cost for attaching node n to T at node m, find the minimum cost of all of them. 
+    
+
+def new_cost(cur_cost, node_to_add, attach_node, T, dist_to_attach, dist):
+    #dist_to_attach = G[node_to_add][attach_node]['weight']
+    
+    num_nodes = len(list(T))
+    new_sum = 0
+
+    for node in T.nodes: # calculate new cost
+        new_sum += dist[node][attach_node]
+    new_sum += num_nodes * dist_to_attach
+    
+    cost = cur_cost * (num_nodes-1)/(num_nodes+1) + 2 * new_sum / (num_nodes*(num_nodes+1))
+    
+    return cost
 
 
 def get_mst_T(G, T):
@@ -133,17 +185,12 @@ def make_model(G_copy: nx.Graph):
     # For each vertex, y_i must 1 if none of its neighbors is 1
     for i in V:
         model += y[i] <= 1
-        neighbors = G.adj[i]
-        num_neighbors = len([k for k in neighbors if G[i][k]['weight'] <= 100])
 
-        # model += num_neighbors - xsum(x[i][j] for j in neighbors) >= num_neighbors * (1 - z[i])
-        # model += num_neighbors * (1 - z[i]) >= 1 - xsum(x[i][j] for j in V)
-
-        model += xsum(y[j] for j in neighbors if j != i and G[i][j]['weight'] <= 100) <= num_neighbors * z[i]
-        model += num_neighbors * z[i] <= xsum(y[j] for j in V if j != i and G[i][j]['weight'] <= 100) + num_neighbors - 1
+        model += xsum(y[j] for j in G.adj[i] if j != i and G[i][j]['weight'] <= 100) <= num(G, i) * z[i]
+        model += num(G, i) * z[i] <= xsum(y[j] for j in V if j != i and G[i][j]['weight'] <= 100) + num(G, i) - 1
 
         model += y[i] >= 1 - z[i]
-        model += xsum(x[i][j] for j in neighbors if G[i][j]['weight'] <= 100) >= y[i]
+        model += xsum(x[i][j] for j in G.adj[i] if G[i][j]['weight'] <= 100) >= y[i]
     
     # Constraint: number of edges is number of vertices - 1 (Tree)
     model += 0.5 * xsum(x[i][j] for i in V for j in V if i != j) == xsum(y[i] for i in V) - 1
@@ -154,23 +201,111 @@ def make_model(G_copy: nx.Graph):
     model += xsum(chosen[i] for i in V) == 1
 
     for i in V:
-        model += c[i] >= chosen[i] + y[i] - 1
-        model += c[i] <= chosen[i]
-        model += c[i] <= y[i]
+        model += c[i] == chosen[i]
 
     for i in V:
-        for j in V:
-            if i != j:
-                model += c[i] <= chosen[i] + x[i][j]
-                model += c[i] >= chosen[i]
-                model += c[i] >= x[i][j]
-            
-            # model += c[j] <= x[i][j]
-            # model += c[j] >= x[i][j]
+        for j in G.adj[i]:
+            if G[i][j]['weight'] <= 100:
+                model += c[i] >= c[j] + x[i][j] - 1
+                model += c[i] <= c[j]
+                model += c[i] <= x[i][j]
     
     model += xsum(c[i] for i in V) == xsum(y[i] for i in V)
 
     return model, x, y, V
+
+
+def make_model_new(G_init: nx.Graph):
+    G = nx.Graph(G_init)
+    F_init = nx.DiGraph(G_init)
+    n, V = G.number_of_nodes(), set(range(G.number_of_nodes()))
+
+    # Fill in edge weights into adjacency matrix
+    for i in V:
+        for j in V:
+            if not G.has_edge(i, j):
+                G.add_edge(i, j)
+                G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
+    
+    # Directed graph for total flow
+    F = nx.DiGraph(G)
+    for u, v in F.edges():
+        F[u][v]['capacity'] = 1
+    
+    # Add super source and super sink
+    source = n
+    sink = n + 1
+    
+    F.add_node(source)
+    F.add_node(sink)
+
+    # Add DIRECTED edges
+    for i in V:
+        F.add_edge(source, i)
+        F[source][i]['capacity'] = 2 * n
+
+        F.add_edge(i, sink)
+        F[i][sink]['capacity'] = 1
+    
+    # Initialize model
+    model = Model()
+    model.emphasis = 2
+
+    # Making boolean variable for each vertex
+    y = [model.add_var(var_type=BINARY) for i in V]
+    # Making boolean variable for each edge
+    x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
+    # Making flow variables for each vertex
+    f = [model.add_var() for i in V]
+    # Making variable for vertex connected to source
+    chosen = [model.add_var(var_type=BINARY) for i in V]
+    
+    # Objective: minimize pairwise distance
+    model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
+    
+    # Constraint: at least one vertex must be chosen
+    model += xsum(y[i] for i in V) >= 1
+    # Constraint: at most n vertices can be chosen
+    model += xsum(y[i] for i in V) <= n
+    # Constraint: for tree exactly v-1 edges must be chosen
+    model += 0.5 * xsum(x[i][j] for i in V for j in V) == xsum(y[i] for i in V) - 1
+    
+    # Constraint: edge only chosen if both vertices chosen
+    for i in V:
+        for j in V:
+            model += x[i][j] <= y[i]
+            model += x[i][j] <= y[j]
+    
+    # Constraint: either U or its neighbor must in T (G_INIT USED)
+    for i in V:
+        model += y[i] + xsum(y[j] for j in G_init.adj[i]) >= 1
+
+    # FLOW CONSTRAINTS
+    # Constraint: only one connection to source
+    model += xsum(chosen[i] for i in V) == 1
+
+    # Constraint: 
+
+
+
+
+
+    # # Constraint: chosen vertex should be in T
+    # for i in V:
+    #     model += chosen[i] <= y[i]
+    #     model += f[i] <= y[i]
+    # # Constraint: flow balance and non-negativity
+    # for i in V:
+    #     model += xsum(x[j][i] for j in F_init.predecessors(i)) == xsum(x[i][j] for j in F_init.successors(i))
+    #     model += f[i] >= 0
+    #     model += f[i] <= 1
+    # # Constraint: connectivity is held if sums to total number of vertices
+    # model += xsum(f[i] for i in V) == xsum(y[i] for i in V)
+
+    return model, x, y, f, V
+
+def num(G: nx.Graph, i: int):
+    return len([k for k in G.adj[i] if G[i][k]['weight'] <= 100])
 
 def check_answer():
     incorrect = []
@@ -187,7 +322,8 @@ def check_answer():
         fo.write("\n".join(incorrect))
         fo.close()
 
-
+def num(G: nx.Graph, i: int) -> int:
+    return len([k for k in G.adj[i] if G[i][k]['weight'] <= 100])
     
 # Here's an example of how to run your solver.
 
@@ -198,7 +334,11 @@ if __name__ == '__main__':
     G = read_input_file(path)
     # nx.draw(G.to_directed())
     # plt.show()
-    T = solve(G)
+    T = greedy_solve(G)
+
+    nx.draw(T)
+    plt.show()
+
     assert is_valid_network(G, T)
     print('GOT THRU BB')
     print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
