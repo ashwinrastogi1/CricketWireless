@@ -79,7 +79,7 @@ def greedy_solve(G):
         min_attacher = -1
         min_attachee = -1
         min_cost = 2**128
-        for node in T.node(): # for each node currently in our solution tree T
+        for node in T.nodes(): # for each node currently in our solution tree T
             for neighbor in G[node]: # for all potential neighbors, find the best one to attach
                 if neighbor not in T: # if dist[neighbor] not 0: # if it's a feasible node to add
                     dist_to_attacher = G[neighbor][node]['weight'] # attaching the neighbor node to the current node
