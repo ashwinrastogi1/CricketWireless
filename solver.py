@@ -89,22 +89,27 @@ def greedy_solve(G):
                     if cost < min_cost: # if its cost is better than others
                         min_attacher = neighbor
                         min_attachee = node
-                        min_cost = cost
+                        min_cost = cost # set new min cost
             
         # once we've found the best node to add, add its cost values to dist[]
-        for x in T.nodes: 
+        for x in T.nodes: # iterate through all nodes in T and update their distances
             dist_to_attacher = G[min_attacher][min_attachee]['weight']
-            dist[x][min_attacher] = dist[x][min_attachee] + dist_to_attacher # distance from x to neighbor node is dist from x to attach + dist from attach to neighbor
+            dist[x][min_attacher] = dist[x][min_attachee] + dist_to_attacher # distance from x to attacher is dist from x to attachee + dist from attachee to attacher
             dist[neighbor][x] = dist[x][min_attachee] + dist_to_attacher
+
         T.add_edge(min_attachee, min_attacher)
         T[min_attachee][min_attacher]['weight'] = dist_to_attacher
         cur_cost = min_cost # make sure to update current cost
-    return T
 
-    leaves = [node for node in T if T.degree(node) == 1]
+    leaves = [node for node in T if T.degree(node) == 1] # find leaves of the tree; these are the only ones that we can prune without disconnecting the tree
     for leaf in leaves: 
         parent = T.neighbors(leaf)[0]
         cost = new_cost(cur_cost, leaf, parent, T, G[leaf][parent]['weight'], dist)
+        if cost < cur_cost: 
+            T.remove_node(leaf) 
+            cur_cost = cost
+    
+    return T
 
    # given a tree T, iterate over all potential nodes that can be added
    # calculate cost for attaching node n to T at node m, find the minimum cost of all of them. 
@@ -133,7 +138,7 @@ def removal_cost(cur_cost, node_to_remove, attach_node, T, dist_to_attach, dist)
         new_sum += dist[node][attach_node]
     new_sum += (num_nodes-1) * dist_to_attach
     
-    cost = cur_cost * (num_nodes)/(num_nodes-2) - 2 * new_sum / ((num_nodes-1)*(num_nodes+1))
+    cost = cur_cost * (num_nodes)/(num_nodes-2) - 2 * new_sum / ((num_nodes-1)*(num_nodes-2))
     
     return cost
     
