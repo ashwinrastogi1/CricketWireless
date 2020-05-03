@@ -103,11 +103,16 @@ def greedy_solve(G):
 
     leaves = [node for node in T if T.degree(node) == 1] # find leaves of the tree; these are the only ones that we can prune without disconnecting the tree
     for leaf in leaves: 
-        parent = T.neighbors(leaf)[0]
-        cost = new_cost(cur_cost, leaf, parent, T, G[leaf][parent]['weight'], dist)
-        if cost < cur_cost: 
-            T.remove_node(leaf) 
-            cur_cost = cost
+        #print(leaf)
+        for parent in T.neighbors(leaf): # should only be one but i janked it
+            # parent = T.adj[leaf][0]
+            cost = removal_cost(cur_cost, leaf, parent, T, G[leaf][parent]['weight'], dist)
+            #print("cost: ", cost)
+            if cost < cur_cost: 
+                T.remove_node(leaf) 
+                cur_cost = cost
+    
+    #print("current estimated cost: ", cur_cost)
     
     return T
 
@@ -132,6 +137,10 @@ def new_cost(cur_cost, node_to_add, attach_node, T, dist_to_attach, dist):
 def removal_cost(cur_cost, node_to_remove, attach_node, T, dist_to_attach, dist): 
     
     num_nodes = len(list(T))
+
+    if num_nodes <= 2: 
+        return 2**128
+
     new_sum = 0
 
     for node in T.nodes: # calculate new cost
@@ -348,8 +357,7 @@ if __name__ == '__main__':
     path = sys.argv[1]
     G = read_input_file(path)
 
-    F = make_flow_graph(G)
-    T = solve(G)
+    T = greedy_solve(G)
 
     assert is_valid_network(G, T)
     print('GOT THRU BB')

@@ -4,7 +4,7 @@ from solver import greedy_solve
 import os
 
 if __name__ == "__main__":
-    output_dir = "submission"
+    output_dir = "outputs"
     input_dir = "inputs"
     for input_path in os.listdir(input_dir):
         print(input_path)
