@@ -360,7 +360,7 @@ if __name__ == '__main__':
     path = sys.argv[1]
     G = read_input_file(path)
 
-    T = solve(G)
+    T = greedy_solve(G)
 
     assert is_valid_network(G, T)
     print('GOT THRU BB')
