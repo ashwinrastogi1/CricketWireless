@@ -19,7 +19,7 @@ def solve(G):
         T: networkx.Graph
     """
     
-    model, x, y, z, V = make_model_new(G, 2)
+    model, x, y, V = make_model_new(G)
     model.optimize(max_seconds=60)
     
     if not model.num_solutions:
@@ -36,7 +36,6 @@ def solve(G):
             T.add_node(i)
     
     print([y[i].x for i in range(len(y))])
-    print([z[i].x for i in range(len(y))])
 
     # Added included edges in model
     for i in V:
@@ -250,7 +249,7 @@ def make_model(G_copy: nx.Graph):
     return model, x, y, V
 
 
-def make_model_new(G_init: nx.Graph, fixed=0):
+def make_model_new(G_init: nx.Graph):
     G = nx.Graph(G_init)
     n, V = G.number_of_nodes(), set(range(G.number_of_nodes()))
 
@@ -269,8 +268,6 @@ def make_model_new(G_init: nx.Graph, fixed=0):
     y = [model.add_var(var_type=BINARY) for i in V]
     # Making boolean variable for each edge
     x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
-    # Making connectivity constraint variables
-    z = [model.add_var(var_type=BINARY) for i in V]
     
     # Objective: minimize pairwise distance
     # model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
@@ -281,9 +278,6 @@ def make_model_new(G_init: nx.Graph, fixed=0):
     model += xsum(y[i] for i in V) <= n
     # Constraint: for tree exactly v-1 edges must be chosen
     model += 0.5 * xsum(x[i][j] for i in V for j in V) == xsum(y[i] for i in V) - 1
-    # Constraint: FIXED vertex always included
-    model += y[fixed] == 1
-    model += z[fixed] == 1
 
     # Constraint: edge only chosen if both vertices chosen
     for i in V:
@@ -295,17 +289,19 @@ def make_model_new(G_init: nx.Graph, fixed=0):
     for i in V:
         model += y[i] + xsum(y[j] for j in G_init.adj[i]) >= 1
 
-    # Constraint: setting z values for neighbors
-    # for i in V:
-    #     for j in G_init.adj[i]:
-    #         model += z[i] >= x[i][j] + z[j] - 1
-    #         model += z[i] <= z[j]
-    #         model += z[i] <= x[i][j]
+    # Constraint: all sub groups are trees
+    connectivity_constraints(model, n, set(), x, y)
+    print('CONSTRAINTS DONE')
 
-    # Constraint: all vertices must be connected
-    model += xsum(z[i] for i in V) == xsum(y[i] for i in V)
+    return model, x, y, V
 
-    return model, x, y, z, V
+def connectivity_constraints(model: Model, V: int, subV, x, y, prev=-1):
+    for i in range(prev + 1, V):
+        subV.add(i)
+        if len(subV) > 1 or len(subV) < V:
+            model += 0.5 * xsum(x[i][j] for i in subV for j in subV) >= xsum(y[i] for i in subV) - 1
+        connectivity_constraints(model, V, subV, x, y, prev=i)
+        subV.remove(i)
 
 def make_flow_graph(G: nx.Graph):
     n = G.number_of_nodes()
@@ -357,7 +353,7 @@ if __name__ == '__main__':
     path = sys.argv[1]
     G = read_input_file(path)
 
-    T = greedy_solve(G)
+    T = solve(G)
 
     assert is_valid_network(G, T)
     print('GOT THRU BB')
