@@ -364,7 +364,7 @@ if __name__ == '__main__':
 
     assert is_valid_network(G, T)
     print('GOT THRU BB')
-    print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
+    print("Average  pairwise distance: {}".format(average_pairwise_distance_fast(T)))
     # write_output_file(T, 'out/test_medium.out')
 
     #check_answer()
