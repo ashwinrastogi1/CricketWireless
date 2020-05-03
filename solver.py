@@ -35,7 +35,7 @@ def solve(G):
             T.add_node(i)
     
     print([y[i].x for i in range(len(y))])
-    print('\n', [f[i].x for i in range(len(f))])
+    # print('\n', [round(f[i][j].x, 4) for i in range(len(f)) for j in range(len(f))])
 
     # Added included edges in model
     for i in V:
@@ -228,9 +228,7 @@ def make_model_new(G_init: nx.Graph):
                 G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
     
     # Directed graph for total flow
-    F = nx.DiGraph(G)
-    for u, v in F.edges():
-        F[u][v]['capacity'] = 1
+    F = make_flow_graph(G)
     
     # Add super source and super sink
     source = n
@@ -242,10 +240,7 @@ def make_model_new(G_init: nx.Graph):
     # Add DIRECTED edges
     for i in V:
         F.add_edge(source, i)
-        F[source][i]['capacity'] = 2 * n
-
         F.add_edge(i, sink)
-        F[i][sink]['capacity'] = 1
     
     # Initialize model
     model = Model()
@@ -256,7 +251,8 @@ def make_model_new(G_init: nx.Graph):
     # Making boolean variable for each edge
     x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
     # Making flow variables for each vertex
-    f = [model.add_var() for i in V]
+    #f = [model.add_var() for i in V]
+    f = [[model.add_var() for j in range(n + 2)] for i in range(n + 2)]
     # Making variable for vertex connected to source
     chosen = [model.add_var(var_type=BINARY) for i in V]
     
@@ -284,11 +280,29 @@ def make_model_new(G_init: nx.Graph):
     # Constraint: only one connection to source
     model += xsum(chosen[i] for i in V) == 1
 
-    # Constraint: 
+    # Constraint: flow from source is number of vertices
+    for i in V:
+        model += f[source][i] >= 0
+        model += f[source][i] <= float(2 ** 8)
 
+    # Constraint: flow is between 0 and 1
+    for i in V:
+        for j in V:
+            model += f[i][j] <= 1
+            model += f[i][j] >= 0
 
+            # If x_ij edge not included, no flow through it
+            model += f[i][j] <= x[i][j]
 
+    # Constraint: flow balance
+    for i in V:
+        model += xsum(f[j][i] for j in F_init.predecessors(i)) == xsum(f[i][j] for j in F_init.successors(i))
+        # Flow into sink is bounded
+        model += f[i][sink] <= 1
+        model += f[i][sink] >= 0
 
+    # Constraint: flow into sink is equal to number of vertices
+    model += xsum(f[i][sink] for i in V) == xsum(y[i] for i in V)
 
     # # Constraint: chosen vertex should be in T
     # for i in V:
@@ -303,6 +317,30 @@ def make_model_new(G_init: nx.Graph):
     # model += xsum(f[i] for i in V) == xsum(y[i] for i in V)
 
     return model, x, y, f, V
+
+def make_flow_graph(G: nx.Graph):
+    n = G.number_of_nodes()
+    V = set(range(n))
+    
+    F = G.to_directed()
+    F.add_node(n)
+
+    for i in V:
+        F.add_edge(n, i)
+    
+    to_remove = []
+    trav = nx.dfs_edges(F, source=n)
+    for e in trav:
+        to_remove.append(e)
+    F.remove_edges_from(to_remove)
+
+    F.add_node(n)
+    F.add_node(n + 1)
+    for i in V:
+        F.add_edge(n, i)
+        F.add_edge(i, n + 1)
+
+    return F
 
 def num(G: nx.Graph, i: int):
     return len([k for k in G.adj[i] if G[i][k]['weight'] <= 100])
@@ -321,9 +359,6 @@ def check_answer():
     with open('medium_not_work.txt', 'w') as fo:
         fo.write("\n".join(incorrect))
         fo.close()
-
-def num(G: nx.Graph, i: int) -> int:
-    return len([k for k in G.adj[i] if G[i][k]['weight'] <= 100])
     
 # Here's an example of how to run your solver.
 
@@ -332,17 +367,14 @@ if __name__ == '__main__':
     assert len(sys.argv) == 2
     path = sys.argv[1]
     G = read_input_file(path)
-    # nx.draw(G.to_directed())
-    # plt.show()
-    T = greedy_solve(G)
 
-    nx.draw(T)
-    plt.show()
+    F = make_flow_graph(G)
+    T = solve(G)
 
     assert is_valid_network(G, T)
     print('GOT THRU BB')
     print("Average  pairwise distance: {}".format(average_pairwise_distance(T)))
-    write_output_file(T, 'out/test_medium.out')
+    # write_output_file(T, 'out/test_medium.out')
 
     #check_answer()
 
