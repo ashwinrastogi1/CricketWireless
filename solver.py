@@ -5,6 +5,7 @@ from itertools import product
 import matplotlib.pyplot as plt
 from mip import Model, xsum, minimize, BINARY
 import sys
+import random as rand
 import glob
 
 DEFAULT_MAX_WEIGHT = float(2 ** 128)
@@ -18,7 +19,7 @@ def solve(G):
         T: networkx.Graph
     """
     
-    model, x, y, f, V = make_model_new(G)
+    model, x, y, z, V = make_model_new(G, 2)
     model.optimize(max_seconds=60)
     
     if not model.num_solutions:
@@ -35,7 +36,7 @@ def solve(G):
             T.add_node(i)
     
     print([y[i].x for i in range(len(y))])
-    # print('\n', [round(f[i][j].x, 4) for i in range(len(f)) for j in range(len(f))])
+    print([z[i].x for i in range(len(y))])
 
     # Added included edges in model
     for i in V:
@@ -97,7 +98,13 @@ def greedy_solve(G):
             dist[neighbor][x] = dist[x][min_attachee] + dist_to_attacher
         T.add_edge(min_attachee, min_attacher)
         T[min_attachee][min_attacher]['weight'] = dist_to_attacher
+        cur_cost = min_cost # make sure to update current cost
     return T
+
+    leaves = [node for node in T if T.degree(node) == 1]
+    for leaf in leaves: 
+        parent = T.neighbors(leaf)[0]
+        cost = new_cost(cur_cost, leaf, parent, T, G[leaf][parent]['weight'], dist)
 
    # given a tree T, iterate over all potential nodes that can be added
    # calculate cost for attaching node n to T at node m, find the minimum cost of all of them. 
@@ -116,6 +123,20 @@ def new_cost(cur_cost, node_to_add, attach_node, T, dist_to_attach, dist):
     cost = cur_cost * (num_nodes-1)/(num_nodes+1) + 2 * new_sum / (num_nodes*(num_nodes+1))
     
     return cost
+
+def removal_cost(cur_cost, node_to_remove, attach_node, T, dist_to_attach, dist): 
+    
+    num_nodes = len(list(T))
+    new_sum = 0
+
+    for node in T.nodes: # calculate new cost
+        new_sum += dist[node][attach_node]
+    new_sum += (num_nodes-1) * dist_to_attach
+    
+    cost = cur_cost * (num_nodes)/(num_nodes-2) - 2 * new_sum / ((num_nodes-1)*(num_nodes+1))
+    
+    return cost
+    
 
 
 def get_mst_T(G, T):
@@ -215,9 +236,8 @@ def make_model(G_copy: nx.Graph):
     return model, x, y, V
 
 
-def make_model_new(G_init: nx.Graph):
+def make_model_new(G_init: nx.Graph, fixed=0):
     G = nx.Graph(G_init)
-    F_init = nx.DiGraph(G_init)
     n, V = G.number_of_nodes(), set(range(G.number_of_nodes()))
 
     # Fill in edge weights into adjacency matrix
@@ -227,21 +247,6 @@ def make_model_new(G_init: nx.Graph):
                 G.add_edge(i, j)
                 G[i][j]['weight'] = DEFAULT_MAX_WEIGHT
     
-    # Directed graph for total flow
-    F = make_flow_graph(G)
-    
-    # Add super source and super sink
-    source = n
-    sink = n + 1
-    
-    F.add_node(source)
-    F.add_node(sink)
-
-    # Add DIRECTED edges
-    for i in V:
-        F.add_edge(source, i)
-        F.add_edge(i, sink)
-    
     # Initialize model
     model = Model()
     model.emphasis = 2
@@ -250,22 +255,22 @@ def make_model_new(G_init: nx.Graph):
     y = [model.add_var(var_type=BINARY) for i in V]
     # Making boolean variable for each edge
     x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
-    # Making flow variables for each vertex
-    #f = [model.add_var() for i in V]
-    f = [[model.add_var() for j in range(n + 2)] for i in range(n + 2)]
-    # Making variable for vertex connected to source
-    chosen = [model.add_var(var_type=BINARY) for i in V]
+    # Making connectivity constraint variables
+    z = [model.add_var(var_type=BINARY) for i in V]
     
     # Objective: minimize pairwise distance
-    model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
-    
+    # model.objective = minimize(xsum(x[i][j] * G[i][j]['weight'] for i in V for j in V))
+    model.objective = minimize(xsum(y[i] for i in V))
     # Constraint: at least one vertex must be chosen
     model += xsum(y[i] for i in V) >= 1
     # Constraint: at most n vertices can be chosen
     model += xsum(y[i] for i in V) <= n
     # Constraint: for tree exactly v-1 edges must be chosen
     model += 0.5 * xsum(x[i][j] for i in V for j in V) == xsum(y[i] for i in V) - 1
-    
+    # Constraint: FIXED vertex always included
+    model += y[fixed] == 1
+    model += z[fixed] == 1
+
     # Constraint: edge only chosen if both vertices chosen
     for i in V:
         for j in V:
@@ -276,47 +281,17 @@ def make_model_new(G_init: nx.Graph):
     for i in V:
         model += y[i] + xsum(y[j] for j in G_init.adj[i]) >= 1
 
-    # FLOW CONSTRAINTS
-    # Constraint: only one connection to source
-    model += xsum(chosen[i] for i in V) == 1
-
-    # Constraint: flow from source is number of vertices
-    for i in V:
-        model += f[source][i] >= 0
-        model += f[source][i] <= float(2 ** 8)
-
-    # Constraint: flow is between 0 and 1
-    for i in V:
-        for j in V:
-            model += f[i][j] <= 1
-            model += f[i][j] >= 0
-
-            # If x_ij edge not included, no flow through it
-            model += f[i][j] <= x[i][j]
-
-    # Constraint: flow balance
-    for i in V:
-        model += xsum(f[j][i] for j in F_init.predecessors(i)) == xsum(f[i][j] for j in F_init.successors(i))
-        # Flow into sink is bounded
-        model += f[i][sink] <= 1
-        model += f[i][sink] >= 0
-
-    # Constraint: flow into sink is equal to number of vertices
-    model += xsum(f[i][sink] for i in V) == xsum(y[i] for i in V)
-
-    # # Constraint: chosen vertex should be in T
+    # Constraint: setting z values for neighbors
     # for i in V:
-    #     model += chosen[i] <= y[i]
-    #     model += f[i] <= y[i]
-    # # Constraint: flow balance and non-negativity
-    # for i in V:
-    #     model += xsum(x[j][i] for j in F_init.predecessors(i)) == xsum(x[i][j] for j in F_init.successors(i))
-    #     model += f[i] >= 0
-    #     model += f[i] <= 1
-    # # Constraint: connectivity is held if sums to total number of vertices
-    # model += xsum(f[i] for i in V) == xsum(y[i] for i in V)
+    #     for j in G_init.adj[i]:
+    #         model += z[i] >= x[i][j] + z[j] - 1
+    #         model += z[i] <= z[j]
+    #         model += z[i] <= x[i][j]
 
-    return model, x, y, f, V
+    # Constraint: all vertices must be connected
+    model += xsum(z[i] for i in V) == xsum(y[i] for i in V)
+
+    return model, x, y, z, V
 
 def make_flow_graph(G: nx.Graph):
     n = G.number_of_nodes()
