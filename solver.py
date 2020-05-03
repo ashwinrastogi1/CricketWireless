@@ -1,6 +1,6 @@
 import networkx as nx
 from parse import read_input_file, write_output_file, read_output_file
-from utils import is_valid_network, average_pairwise_distance
+from utils import is_valid_network, average_pairwise_distance, average_pairwise_distance_fast
 from itertools import product
 import matplotlib.pyplot as plt
 from mip import Model, xsum, minimize, BINARY
@@ -70,50 +70,57 @@ def greedy_solve(G):
     """
     determine via cost function which node is the most locally optimal choice to add to preexisting nodes (tree)
     """
-    cur_cost = 0
-    T = nx.Graph()
-    T.add_node(0) # for now, just start with initial node 0
-    v_t = 0
-    dist = [[0] * len(list(G))] * len(list(G))
-    while len(list(T)) < len(list(G)): 
-        min_attacher = -1
-        min_attachee = -1
-        min_cost = 2**128
-        for node in T.nodes(): # for each node currently in our solution tree T
-            for neighbor in G[node]: # for all potential neighbors, find the best one to attach
-                if neighbor not in T: # if dist[neighbor] not 0: # if it's a feasible node to add
-                    dist_to_attacher = G[neighbor][node]['weight'] # attaching the neighbor node to the current node
-                    cost = new_cost(cur_cost, neighbor, node, T, dist_to_attacher, dist) # calculate new cost after attaching
+    min_T = nx.Graph()
+    best_pairwise = 2**128
+    for start_node in range(len(list(G))):
+        cur_cost = 0
+        T = nx.Graph()
+        T.add_node(0) # for now, just start with initial node 0
+        v_t = 0
+        dist = [[0] * len(list(G))] * len(list(G))
+        while len(list(T)) < len(list(G)): 
+            min_attacher = -1
+            min_attachee = -1
+            min_cost = 2**128
+            for node in T.nodes(): # for each node currently in our solution tree T
+                for neighbor in G[node]: # for all potential neighbors, find the best one to attach
+                    if neighbor not in T: # if dist[neighbor] not 0: # if it's a feasible node to add
+                        dist_to_attacher = G[neighbor][node]['weight'] # attaching the neighbor node to the current node
+                        cost = new_cost(cur_cost, neighbor, node, T, dist_to_attacher, dist) # calculate new cost after attaching
 
-                    if cost < min_cost: # if its cost is better than others
-                        min_attacher = neighbor
-                        min_attachee = node
-                        min_cost = cost # set new min cost
-            
-        # once we've found the best node to add, add its cost values to dist[]
-        for x in T.nodes: # iterate through all nodes in T and update their distances
-            dist_to_attacher = G[min_attacher][min_attachee]['weight']
-            dist[x][min_attacher] = dist[x][min_attachee] + dist_to_attacher # distance from x to attacher is dist from x to attachee + dist from attachee to attacher
-            dist[neighbor][x] = dist[x][min_attachee] + dist_to_attacher
+                        if cost < min_cost: # if its cost is better than others
+                            min_attacher = neighbor
+                            min_attachee = node
+                            min_cost = cost # set new min cost
+                
+            # once we've found the best node to add, add its cost values to dist[]
+            for x in T.nodes: # iterate through all nodes in T and update their distances
+                dist_to_attacher = G[min_attacher][min_attachee]['weight']
+                dist[x][min_attacher] = dist[x][min_attachee] + dist_to_attacher # distance from x to attacher is dist from x to attachee + dist from attachee to attacher
+                dist[neighbor][x] = dist[x][min_attachee] + dist_to_attacher
 
-        T.add_edge(min_attachee, min_attacher)
-        T[min_attachee][min_attacher]['weight'] = dist_to_attacher
-        cur_cost = min_cost # make sure to update current cost
+            T.add_edge(min_attachee, min_attacher)
+            T[min_attachee][min_attacher]['weight'] = dist_to_attacher
+            cur_cost = min_cost # make sure to update current cost
 
-    leaves = [node for node in T if T.degree(node) == 1] # find leaves of the tree; these are the only ones that we can prune without disconnecting the tree
-    for leaf in leaves: 
-        #print(leaf)
-        for parent in T.neighbors(leaf): # should only be one but i janked it
-            # parent = T.adj[leaf][0]
-            cost = removal_cost(cur_cost, leaf, parent, T, G[leaf][parent]['weight'], dist)
-            #print("cost: ", cost)
-            if cost < cur_cost: 
-                T.remove_node(leaf) 
-                cur_cost = cost
+        leaves = [node for node in T if T.degree(node) == 1] # find leaves of the tree; these are the only ones that we can prune without disconnecting the tree
+        for leaf in leaves: 
+            #print(leaf)
+            for parent in T.neighbors(leaf): # should only be one but i janked it
+                # parent = T.adj[leaf][0]
+                cost = removal_cost(cur_cost, leaf, parent, T, G[leaf][parent]['weight'], dist)
+                #print("cost: ", cost)
+                if cost < cur_cost: 
+                    T.remove_node(leaf) 
+                    cur_cost = cost
+        cur_pairwise = average_pairwise_distance_fast(T)
+        if cur_pairwise < best_pairwise: 
+            best_pairwise = cur_pairwise
+            min_T = nx.Graph(T)
     
     #print("current estimated cost: ", cur_cost)
     
-    return T
+    return min_T
 
    # given a tree T, iterate over all potential nodes that can be added
    # calculate cost for attaching node n to T at node m, find the minimum cost of all of them. 
